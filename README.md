@@ -10,3 +10,6 @@ Sistema de gestión de inventario con identificación por código QR e inteligen
 4. Instalar dependencias: `pip install -r requirements.txt`
 5. Copiar `.env.example` como `.env` y poner tu contraseña de PostgreSQL
 6. Crear la base de datos `megasupply` en tu PostgreSQL local
+
+
+Test
