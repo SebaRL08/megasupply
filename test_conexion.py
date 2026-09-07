@@ -1,7 +1,11 @@
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
-# Reemplaza TU_CONTRASEÑA por la que pusiste al instalar PostgreSQL
-DATABASE_URL = "postgresql+psycopg2://postgres:TU_CONTRASENA_AQUI@localhost:5432/megasupply"
+load_dotenv()
+
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DATABASE_URL = f"postgresql+psycopg2://postgres:{DB_PASSWORD}@localhost:5432/megasupply"
 
 try:
     engine = create_engine(DATABASE_URL)
