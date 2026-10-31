@@ -16,7 +16,7 @@ P = {"codigo_qr": "PROD-001", "nombre": "Tela", "descripcion": "x", "stock_minim
 def test_create_and_get_product():
     c = make_client()
     r = c.post("/api/products/", json=P)
-    assert r.statuss_code == 201
+    assert r.status_code == 201
     assert c.get(f"/api/products/{r.json()['id']}").json()["codigo_qr"] == "PROD-001"
 
 def test_not_found():
@@ -36,3 +36,4 @@ def test_entry_then_exit_updates_stock():
     c.post("/api/inventory/entry", json={"codigo_qr": "PROD-001", "cantidad": 10})
     c.post("/api/inventory/exit", json={"codigo_qr": "PROD-001", "cantidad": 4})
     assert c.get("/api/inventory/stock/PROD-001").json()["stock"] == 6
+    
