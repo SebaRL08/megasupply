@@ -1,21 +1,36 @@
 from dotenv import load_dotenv
 load_dotenv()
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from src.api.routers import products, inventory, replenishment, market, ai_assistant
-from src.domain.entities import ProductNotFound, DuplicateProduct, InsufficientStock
 
-app = FastAPI(title="MegaSupply API", version="2.0.0",
-              description="Hexagonal modular monolith: FastAPI, PostgreSQL, Gemini and Colombian open data.")
+from src.api.routers import (ai_assistant, inventory, market, orders, products,
+                             recommendations, replenishment, reports)
+from src.domain import entities as ent
 
-for r in (products, inventory, replenishment, market, ai_assistant):
+app = FastAPI(title="MegaSupply API", version="3.0.0",
+              description="Hexagonal modular monolith: inventory, QR, forecasting and Colombian open data.")
+
+for r in (products, inventory, orders, replenishment, recommendations, reports, market, ai_assistant):
     app.include_router(r.router)
 
-def _handler(status_code):
-    async def h(request: Request, exc: Exception):
-        return JSONResponse(status_code=status_code, content={"detail": str(exc)})
-    return h
 
-app.add_exception_handler(ProductNotFound, _handler(404))
-app.add_exception_handler(DuplicateProduct, _handler(409))
-app.add_exception_handler(InsufficientStock, _handler(409))
+@app.get("/health", tags=["System"])
+def health():
+    return {"status": "ok"}
+
+
+ERRORS = {ent.ProductNotFound: 404, ent.LocationNotFound: 404, ent.OrderNotFound: 404,
+          ent.RecommendationNotFound: 404, ent.DuplicateProduct: 409, ent.InsufficientStock: 409,
+          ent.ProductInUse: 409, ent.InvalidOperation: 400}
+
+
+def _handler(code):
+    async def handler(request: Request, exc: Exception):
+        return JSONResponse(status_code=code, content={"detail": str(exc)})
+    return handler
+
+
+for exc_type, code in ERRORS.items():
+    app.add_exception_handler(exc_type, _handler(code))
+    
