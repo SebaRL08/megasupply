@@ -6,7 +6,7 @@ def test_breaker_opens_and_recovers():
     cb.on_failure()
     cb.on_failure()
     assert cb.state == "OPEN"
-    cb.before_call()  # con recovery_timeout=0 pasa a HALF_OPEN
+    cb.before_call()
     assert cb.state == "HALF_OPEN"
     cb.on_success()
     assert cb.state == "CLOSED"
