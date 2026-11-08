@@ -52,3 +52,8 @@ class DemandForecaster(Protocol):
 
 class AIAdvisor(Protocol):
     def advise(self, question: str) -> dict: ...
+
+
+class ReportWriter(Protocol):
+    """Redacta el resumen mensual a partir de datos ya calculados."""
+    def write(self, data: dict) -> str: ...
