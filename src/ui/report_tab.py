@@ -1,7 +1,9 @@
 import json
 from datetime import date
 
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSpinBox, QTextEdit, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QHBoxLayout, QLabel, QPushButton, QSpinBox,
+                             QTextEdit, QVBoxLayout, QWidget)
 
 from src.ui.api_client import ApiClient, ApiError
 from src.ui.helpers import warn
@@ -12,7 +14,7 @@ def _lines(rows, fmt, empty):
 
 
 class ReportTab(QWidget):
-    """Informe mensual y consulta de las APIs colombianas (TRM y GNCV)."""
+    """Informe mensual (con y sin IA) y consulta de las APIs colombianas (TRM y GNCV)."""
 
     def __init__(self, api: ApiClient):
         super().__init__()
@@ -24,16 +26,19 @@ class ReportTab(QWidget):
         self.month.setValue(date.today().month)
         self.gncv_year.setRange(2015, 2100)
         self.gncv_year.setValue(2025)
+        self.force_ai = QCheckBox("Forzar nueva consulta a la IA")
         self.out = QTextEdit()
         self.out.setReadOnly(True)
         btn_report = QPushButton("Generar informe mensual")
         btn_report.clicked.connect(self._report)
+        self.btn_ai = QPushButton("Resumen del mes con IA")
+        self.btn_ai.clicked.connect(self._ai_summary)
         btn_trm = QPushButton("Consultar TRM")
         btn_trm.clicked.connect(self._trm)
         btn_gncv = QPushButton("Consultar precios de GNCV")
         btn_gncv.clicked.connect(self._gncv)
         top = QHBoxLayout()
-        for w in (QLabel("Año"), self.year, QLabel("Mes"), self.month, btn_report):
+        for w in (QLabel("Año"), self.year, QLabel("Mes"), self.month, btn_report, self.btn_ai, self.force_ai):
             top.addWidget(w)
         market = QHBoxLayout()
         for w in (btn_trm, QLabel("Año GNCV"), self.gncv_year, btn_gncv):
@@ -61,6 +66,27 @@ class ReportTab(QWidget):
                        "  Ninguna")
         self.out.setPlainText("\n".join(text))
 
+    def _ai_summary(self, *_):
+        self.out.setPlainText("Generando resumen con IA... (puede tardar hasta 30 segundos)")
+        self.btn_ai.setEnabled(False)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        QApplication.processEvents()
+        try:
+            r = self.api.get("/api/reports/monthly/ai", timeout=45.0,
+                             params={"year": self.year.value(), "month": self.month.value(),
+                                     "refresh": "true" if self.force_ai.isChecked() else "false"})
+        except ApiError as err:
+            warn(self, err)
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.btn_ai.setEnabled(True)
+        origin = f"IA ({r['model']})" if r["source"] == "ai" else "reglas locales"
+        if r["cached"]:
+            origin += ", respuesta guardada"
+        note = f"\n\nNota: {r['note']}" if r["note"] else ""
+        self.out.setPlainText(f"RESUMEN DEL MES {r['period']}: {origin}\n\n{r['summary']}{note}")
+
     def _show(self, path, params=None):
         try:
             self.out.setPlainText(json.dumps(self.api.get(path, params=params), ensure_ascii=False, indent=2))
@@ -72,3 +98,4 @@ class ReportTab(QWidget):
 
     def _gncv(self, *_):
         self._show("/api/market/gncv", {"year": str(self.gncv_year.value())})
+        

@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 
+
 from src.application.forecast_service import ForecastService
 from src.application.inventory_service import InventoryService
 from src.application.order_service import OrderService
@@ -11,6 +12,7 @@ from src.infrastructure.colombia_open_data import OpenDataClient
 from src.infrastructure.forecaster import LinearTrendForecaster
 from src.infrastructure.sql_repositories import (SqlInventoryRepository, SqlOrderRepository,
                                                  SqlProductRepository, SqlRecommendationRepository)
+from src.application.ai_report_service import AIReportService
 
 
 @lru_cache
@@ -45,3 +47,10 @@ def get_forecast_service():
 
 def get_report_service():
     return ReportService(_inventory(), get_replenishment_service(), _orders(), _recs())
+
+def get_ai_report_service():
+    writer = None
+    if os.getenv("GEMINI_API_KEY"):
+        from src.infrastructure.gemini_report_writer import GeminiReportWriter
+        writer = GeminiReportWriter()
+    return AIReportService(get_report_service(), writer)

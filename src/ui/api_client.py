@@ -10,9 +10,9 @@ class ApiClient:
     def __init__(self, base: str = "http://127.0.0.1:8000"):
         self.base = base
 
-    def _request(self, method: str, path: str, **kwargs):
+    def _request(self, method: str, path: str, timeout: float = 10.0, **kwargs):
         try:
-            r = httpx.request(method, self.base + path, timeout=10.0, **kwargs)
+            r = httpx.request(method, self.base + path, timeout=timeout, **kwargs)
         except httpx.HTTPError as exc:
             raise ApiError(f"Sin conexión con la API: {exc}") from exc
         if r.status_code >= 400:
@@ -23,8 +23,8 @@ class ApiClient:
             raise ApiError(str(detail))
         return r.json() if r.content else None
 
-    def get(self, path, params=None):
-        return self._request("GET", path, params=params)
+    def get(self, path, params=None, timeout: float = 10.0):
+        return self._request("GET", path, timeout=timeout, params=params)
 
     def post(self, path, json=None):
         return self._request("POST", path, json=json)
