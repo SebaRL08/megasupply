@@ -2,12 +2,20 @@
 import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
-
+import os
+from concurrent.futures import TimeoutError as FutureTimeout
 from src.domain.ports import ReportWriter
 
 _CACHE: dict[str, dict] = {}  # solo guarda respuestas reales de la IA
-AI_TIMEOUT_SECONDS = 25
+AI_TIMEOUT_SECONDS = 40
 
+def _clean_error(exc: Exception) -> str:
+    """Mensaje corto y sin la llave, para mostrar al usuario."""
+    msg = " ".join(str(exc).split())
+    key = os.getenv("GEMINI_API_KEY")
+    if key:
+        msg = msg.replace(key, "***")
+    return msg[:300]
 
 def _compact(data: dict) -> dict:
     """Reduce el informe a lo esencial para gastar pocos tokens."""
@@ -59,24 +67,30 @@ class AIReportService:
         key = hashlib.sha256(json.dumps(compact, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         if not refresh and key in _CACHE:
             return {**_CACHE[key], "cached": True}
-        text, model = self._try_ai(compact)
+        text, model, error = self._try_ai(compact)
         if text:
             result = {"period": compact["periodo"], "summary": text, "source": "ai", "model": model,
                       "cached": False, "note": ""}
             _CACHE[key] = result
             return result
+        note = "La IA no estuvo disponible; resumen generado con reglas locales a partir de los mismos datos."
+        if error:
+            note += f" Motivo: {error}"
         return {"period": compact["periodo"], "summary": _local_summary(compact), "source": "local",
-                "model": None, "cached": False,
-                "note": "La IA no estuvo disponible; resumen generado con reglas locales a partir de los mismos datos."}
+                "model": None, "cached": False, "note": note}
 
     def _try_ai(self, compact: dict):
         if self._writer is None:
-            return None, None
+            return None, None, "no hay GEMINI_API_KEY configurada en .env"
         pool = ThreadPoolExecutor(max_workers=1)
         try:
             text = (pool.submit(self._writer.write, compact).result(timeout=self._timeout) or "").strip()
-            return (text, getattr(self._writer, "last_model", None)) if text else (None, None)
-        except Exception:  # conexión perdida, cuota agotada, tiempo agotado...
-            return None, None
+            if text:
+                return text, getattr(self._writer, "last_model", None), None
+            return None, None, "la IA devolvió una respuesta vacía"
+        except FutureTimeout:
+            return None, None, f"tiempo de espera agotado ({self._timeout:.0f} s)"
+        except Exception as exc:  # conexión perdida, cuota agotada, modelo inexistente...
+            return None, None, _clean_error(exc)
         finally:
             pool.shutdown(wait=False)

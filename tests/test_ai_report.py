@@ -63,3 +63,7 @@ def test_never_fails_and_falls_back_to_local(writer):
 def test_local_fallback_is_not_cached():
     AIReportService(Reports(), BrokenWriter()).monthly_summary(2026, 11)
     assert mod._CACHE == {}
+
+def test_note_explains_why_ai_failed():
+    r = AIReportService(Reports(), BrokenWriter()).monthly_summary(2026, 11)
+    assert "connection lost" in r["note"]

@@ -158,7 +158,7 @@ class ScannerTab(QWidget):
         except ApiError as err:
             self.product = None
             self.info.setText(f"QR leído: {text}\n{err}")
-            self._status("Producto no encontrado", ok=False)
+            self._status("Producto nuevo: créalo en la pestaña 'Productos y QR' y luego repite la entrada", ok=False)
             return
         if self.auto_one.isChecked() and not force:
             self._register(1)

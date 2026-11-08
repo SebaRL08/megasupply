@@ -11,6 +11,7 @@ SYSTEM = ("Eres un analista de inventario. Redacta en español un resumen mensua
           "(máximo 250 palabras) con: panorama general, productos de mayor demanda, riesgos de "
           "desabastecimiento y acciones sugeridas. Usa únicamente los datos entregados y no inventes cifras. "
           "Si los datos base son simulados, dilo. Responde en texto plano, sin markdown.")
+TEMPORARY_CODES = (429, 500, 503, 504)  # errores que sí valen la pena reintentar
 
 
 class GeminiReportWriter:
@@ -29,17 +30,22 @@ class GeminiReportWriter:
         context = os.getenv("REPORT_CONTEXT", "").strip()
         if context:  # contexto de empresa opcional, para más adelante
             system += f" Contexto: {context}"
-        config = types.GenerateContentConfig(system_instruction=system, temperature=0.3, max_output_tokens=700)
+        # 2048 deja espacio a los tokens de "razonamiento" de los modelos nuevos
+        config = types.GenerateContentConfig(system_instruction=system, temperature=0.3, max_output_tokens=2048)
         prompt = "Datos del mes (JSON):\n" + json.dumps(data, ensure_ascii=False)
-        last: Exception | None = None
-        for model in self._models:          # si un modelo falla, prueba el siguiente
+        errors: list[str] = []
+        for model in self._models:
             for attempt in range(self._retries):
                 try:
                     text = (client.models.generate_content(model=model, contents=prompt, config=config).text or "").strip()
                     if text:
                         self.last_model = model
                         return text
+                    errors.append(f"{model}: respuesta vacía")
                 except Exception as exc:
-                    last = exc
+                    errors.append(f"{model}: {exc}")
+                    code = getattr(exc, "code", None)
+                    if isinstance(code, int) and code not in TEMPORARY_CODES:
+                        break  # error permanente de este modelo: pasa al siguiente sin reintentar
                     time.sleep(0.5 * 2 ** attempt)  # espera exponencial
-        raise RuntimeError(f"AI unavailable: {last}")
+        raise RuntimeError(" | ".join(errors[-3:]))
